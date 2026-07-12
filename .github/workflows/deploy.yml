@@ -28,5 +28,5 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          rsync -az --delete --exclude '.env' --exclude '.git' --exclude 'frontend/node_modules' --exclude 'frontend/dist' ./ "$VPS_USER@$VPS_HOST:/opt/utec/"
+          rsync -az --delete --exclude '.env' --exclude '.git' --exclude 'backups' --exclude 'frontend/node_modules' --exclude 'frontend/dist' ./ "$VPS_USER@$VPS_HOST:/opt/utec/"
           ssh "$VPS_USER@$VPS_HOST" 'cd /opt/utec && docker compose --env-file .env -f docker-compose.prod.yml up -d --build'
