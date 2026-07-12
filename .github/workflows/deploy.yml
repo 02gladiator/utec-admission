@@ -17,10 +17,10 @@ jobs:
       - name: Configure SSH
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KEY_B64: ${{ secrets.VPS_SSH_KEY_B64 }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+          printf '%s' "$VPS_SSH_KEY_B64" | base64 --decode > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
       - name: Sync project and restart services
