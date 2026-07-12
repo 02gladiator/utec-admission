@@ -298,7 +298,6 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: "utec_admin_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: 43200})
-	s.invalidatePublicLists(r.Context())
 	respond(w, 200, map[string]bool{"ok": true})
 }
 func (s *server) logout(w http.ResponseWriter, r *http.Request) {
@@ -362,6 +361,7 @@ func (s *server) deleteApplication(w http.ResponseWriter, r *http.Request) {
 		respond(w, 404, map[string]string{"error": "not found"})
 		return
 	}
+	s.invalidatePublicLists(r.Context())
 	respond(w, 200, map[string]bool{"ok": true})
 }
 
@@ -400,6 +400,7 @@ func (s *server) updateApplication(w http.ResponseWriter, r *http.Request) {
 		respond(w, 500, map[string]string{"error": "database error"})
 		return
 	}
+	s.invalidatePublicLists(r.Context())
 	respond(w, 200, map[string]bool{"ok": true})
 }
 
