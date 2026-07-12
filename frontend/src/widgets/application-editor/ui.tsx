@@ -68,7 +68,7 @@ export function AdminWorkspace() {
     [items, setItems] = useState<DraftApplication[]>([]),
     [message, setMessage] = useState("");
   const savedWorkspace = loadWorkspace();
-  const [login, setLogin] = useState("postgres"),
+  const [login, setLogin] = useState(""),
     [password, setPassword] = useState(""),
     [draft, setDraft] = useState<Draft>(loadDraft),
     [selectedProgram, setSelectedProgram] = useState(
