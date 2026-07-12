@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import logo from '../../shared/assets/utec-logo.png'
+import './mobile.css'
 
 type Program = { code: string; name: string; budgetSeats: number; paidSeats: number }
 type Row = { name: string; averageScore: number; originalGiven: boolean; overallRank: number; originalRank?: number; budgetOverall: boolean; budgetOriginal: boolean; matched: boolean }
@@ -32,7 +33,7 @@ export default function App() {
     fetch(`/api/public/applications?${params}`).then(r => r.json()).then(setData).finally(() => setLoading(false))
   }, [programCode, onlyOriginal, searchFio])
 
-  return <main>
+  return <main className="public-list">
     <header className="header"><img src={logo} alt="Уфимский торгово-экономический колледж" /><a href="#lists">Конкурсные списки</a></header>
     <section className="hero"><div><p className="eyebrow">ПРИЁМНАЯ КОМИССИЯ</p><h1>Конкурсные списки</h1><p className="subtitle">Проверьте своё место в рейтинге и наличие оригинала документа.</p></div></section>
     <section id="lists" className="content">

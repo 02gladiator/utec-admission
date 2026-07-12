@@ -1,0 +1,44 @@
+/* The ranking has five columns. On a phone the table itself may scroll,
+   but it must never widen the whole document. */
+html,
+body,
+#root {
+  overflow-x: hidden;
+}
+
+.public-list {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.public-list > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.public-list .content,
+.public-list .summary,
+.public-list .legend,
+.public-list .table-wrap {
+  min-width: 0;
+}
+
+.public-list .table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+
+@media (max-width: 760px) {
+  .public-list .content {
+    width: 100%;
+  }
+
+  .public-list .table-wrap table {
+    min-width: 690px;
+  }
+}
