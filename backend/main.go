@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -52,6 +54,18 @@ type createApplicationRequest struct {
 	SNILS         string  `json:"snils"`
 	FullName      string  `json:"fullName"`
 	ProgramCode   string  `json:"programCode"`
+	AverageScore  float64 `json:"averageScore"`
+	OriginalGiven bool    `json:"originalGiven"`
+	Benefit       bool    `json:"benefit"`
+}
+type importApplicationsRequest struct {
+	ProgramCode  string                     `json:"programCode"`
+	Applications []importApplicationRequest `json:"applications"`
+}
+type importApplicationRequest struct {
+	Row           int     `json:"row"`
+	SNILS         string  `json:"snils"`
+	FullName      string  `json:"fullName"`
 	AverageScore  float64 `json:"averageScore"`
 	OriginalGiven bool    `json:"originalGiven"`
 	Benefit       bool    `json:"benefit"`
@@ -95,6 +109,7 @@ func main() {
 	mux.HandleFunc("GET /api/admin/programs", s.adminPrograms)
 	mux.HandleFunc("GET /api/admin/applications", s.adminApplications)
 	mux.HandleFunc("POST /api/admin/applications", s.createApplication)
+	mux.HandleFunc("POST /api/admin/applications/import", s.importApplications)
 	mux.HandleFunc("PUT /api/admin/applications/{id}", s.updateApplication)
 	mux.HandleFunc("DELETE /api/admin/applications/{id}", s.deleteApplication)
 	mux.HandleFunc("POST /api/admin/publish", s.publish)
@@ -444,6 +459,97 @@ func validFullName(value string) bool {
 func validAverageScore(value float64) bool {
 	return value >= 0 && value <= 5 && math.Abs(value*1000-math.Round(value*1000)) < 0.000001
 }
+
+func (s *server) importApplications(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		respond(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	var in importApplicationsRequest
+	if json.NewDecoder(io.LimitReader(r.Body, 5<<20)).Decode(&in) != nil || len(in.Applications) == 0 || len(in.Applications) > 2000 {
+		respond(w, 400, map[string]string{"error": "invalid import data"})
+		return
+	}
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
+	defer tx.Rollback(r.Context())
+	var programID int64
+	if err = tx.QueryRow(r.Context(), `SELECT id FROM programs WHERE code=$1`, in.ProgramCode).Scan(&programID); err != nil {
+		respond(w, 400, map[string]string{"error": "unknown program"})
+		return
+	}
+	type rowError struct {
+		Row      int    `json:"row"`
+		FullName string `json:"fullName"`
+		Error    string `json:"error"`
+	}
+	result := struct {
+		Created int        `json:"created"`
+		Updated int        `json:"updated"`
+		Errors  []rowError `json:"errors"`
+	}{Errors: []rowError{}}
+	seenSNILS := map[string]bool{}
+	for index, item := range in.Applications {
+		rowNumber := item.Row
+		if rowNumber < 1 {
+			rowNumber = index + 1
+		}
+		snils, validationErr := formatSNILS(item.SNILS)
+		if validationErr != nil || !validFullName(item.FullName) || !validAverageScore(item.AverageScore) {
+			result.Errors = append(result.Errors, rowError{Row: rowNumber, FullName: strings.TrimSpace(item.FullName), Error: "Проверьте СНИЛС, ФИО и средний балл."})
+			continue
+		}
+		if seenSNILS[snils] {
+			result.Errors = append(result.Errors, rowError{Row: rowNumber, FullName: strings.TrimSpace(item.FullName), Error: "Повторяющийся СНИЛС в одном файле."})
+			continue
+		}
+		seenSNILS[snils] = true
+
+		rowTx, err := tx.Begin(r.Context())
+		if err != nil {
+			respond(w, 500, map[string]string{"error": "database error"})
+			return
+		}
+		var applicantID int64
+		err = rowTx.QueryRow(r.Context(), `INSERT INTO applicants(snils,full_name) VALUES($1,$2) ON CONFLICT(snils) DO UPDATE SET full_name=EXCLUDED.full_name,updated_at=now() RETURNING id`, snils, strings.TrimSpace(item.FullName)).Scan(&applicantID)
+		var applicationID int64
+		if err == nil {
+			err = rowTx.QueryRow(r.Context(), `SELECT id FROM applications WHERE applicant_id=$1 AND program_id=$2 FOR UPDATE`, applicantID, programID).Scan(&applicationID)
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			_, err = rowTx.Exec(r.Context(), `INSERT INTO applications(applicant_id,program_id,average_score,original_given,benefit) VALUES($1,$2,$3,$4,$5)`, applicantID, programID, item.AverageScore, item.OriginalGiven, item.Benefit)
+			if err == nil {
+				result.Created++
+			}
+		} else if err == nil {
+			_, err = rowTx.Exec(r.Context(), `UPDATE applications SET average_score=$1,original_given=$2,benefit=$3,updated_at=now() WHERE id=$4`, item.AverageScore, item.OriginalGiven, item.Benefit, applicationID)
+			if err == nil {
+				result.Updated++
+			}
+		}
+		if err != nil {
+			_ = rowTx.Rollback(r.Context())
+			result.Errors = append(result.Errors, rowError{Row: rowNumber, FullName: strings.TrimSpace(item.FullName), Error: applicationErrorMessage(err)})
+			continue
+		}
+		if err = rowTx.Commit(r.Context()); err != nil {
+			respond(w, 500, map[string]string{"error": "database error"})
+			return
+		}
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
+	if result.Created+result.Updated > 0 {
+		s.invalidatePublicLists(r.Context())
+	}
+	respond(w, 200, result)
+}
+
 func (s *server) createApplication(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {
 		respond(w, 401, map[string]string{"error": "unauthorized"})

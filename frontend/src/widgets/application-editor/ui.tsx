@@ -419,7 +419,7 @@ export function AdminWorkspace() {
               </section>
             </>
           ) : (
-            <ExcelImport programCode={selectedProgram} existingSnils={visible.map(item => item.snils)} onImported={refreshItems} />
+            <ExcelImport programCode={selectedProgram} onImported={refreshItems} />
           )}
         </aside>
       </div>
