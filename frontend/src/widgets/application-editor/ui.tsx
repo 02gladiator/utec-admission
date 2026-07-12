@@ -1,0 +1,403 @@
+import { FormEvent, useEffect, useState } from "react";
+import "../../pages/admin/admin.css";
+import "../../pages/admin/layout.css";
+import "../applicants-table/table.css";
+import "../applicants-table/desktop.css";
+import type { Program } from "../../entities/program/model/types";
+import type { Application as DraftApplication } from "../../entities/application/model/types";
+import { adminApi } from "../../shared/api/admin";
+import { addApplication } from "../../features/add-application/api";
+import { editApplication } from "../../features/edit-application/api";
+import { deleteApplication } from "../../features/delete-application/api";
+import { ExcelImport } from "../../features/import-applications/ui";
+
+type Draft = {
+  snils: string;
+  fullName: string;
+  programCode: string;
+  averageScore: string;
+  originalGiven: boolean;
+  benefit: boolean;
+};
+const storageKey = "utec-admin-application-draft";
+const workspaceStorageKey = "utec-admin-workspace-state";
+const emptyDraft: Draft = {
+  snils: "",
+  fullName: "",
+  programCode: "21.02.19",
+  averageScore: "",
+  originalGiven: false,
+  benefit: false,
+};
+const namePart = /^[\p{L}-]+$/u;
+function formatSNILS(value: string) {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  return (
+    [d.slice(0, 3), d.slice(3, 6), d.slice(6, 9)].filter(Boolean).join("-") +
+    (d.length > 9 ? ` ${d.slice(9)}` : "")
+  );
+}
+function validName(value: string) {
+  const parts = value.trim().split(/\s+/);
+  return parts.length >= 3 && parts.every((part) => namePart.test(part));
+}
+function validScore(value: string) {
+  return /^(?:[0-4](?:[.,]\d{1,3})?|5(?:[.,]0{1,3})?)$/.test(value.trim());
+}
+function loadDraft(): Draft {
+  try {
+    return {
+      ...emptyDraft,
+      ...JSON.parse(localStorage.getItem(storageKey) || "{}"),
+    };
+  } catch {
+    return emptyDraft;
+  }
+}
+function loadWorkspace() {
+  try {
+    return JSON.parse(localStorage.getItem(workspaceStorageKey) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+export function AdminWorkspace() {
+  const [authenticated, setAuthenticated] = useState(false),
+    [programs, setPrograms] = useState<Program[]>([]),
+    [items, setItems] = useState<DraftApplication[]>([]),
+    [message, setMessage] = useState("");
+  const savedWorkspace = loadWorkspace();
+  const [login, setLogin] = useState("postgres"),
+    [password, setPassword] = useState(""),
+    [draft, setDraft] = useState<Draft>(loadDraft),
+    [selectedProgram, setSelectedProgram] = useState(
+      savedWorkspace.selectedProgram || "21.02.19",
+    ),
+    [mode, setMode] = useState<"manual" | "excel">(
+      savedWorkspace.mode === "excel" ? "excel" : "manual",
+    );
+  const [editing, setEditing] = useState<DraftApplication | null>(
+    savedWorkspace.editing || null,
+  );
+  useEffect(() => {
+    fetch("/api/admin/session")
+      .then((r) => r.json())
+      .then((x) => setAuthenticated(x.authenticated));
+  }, []);
+  useEffect(() => {
+    if (draft !== emptyDraft)
+      localStorage.setItem(storageKey, JSON.stringify(draft));
+  }, [draft]);
+  useEffect(() => {
+    localStorage.setItem(
+      workspaceStorageKey,
+      JSON.stringify({ selectedProgram, mode, editing }),
+    );
+  }, [selectedProgram, mode, editing]);
+  function refreshItems() {
+    adminApi.applications().then(setItems);
+  }
+  useEffect(() => {
+    if (authenticated) {
+      adminApi.programs().then(setPrograms);
+      refreshItems();
+    }
+  }, [authenticated]);
+  const update = (values: Partial<Draft>) =>
+    setDraft((current) => ({ ...current, ...values }));
+  const clear = () => {
+    setDraft(emptyDraft);
+    localStorage.removeItem(storageKey);
+    setMessage("Форма очищена.");
+  };
+  async function signIn(e: FormEvent) {
+    e.preventDefault();
+    const r = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login, password }),
+    });
+    if (r.ok) setAuthenticated(true);
+    else setMessage("Неверный логин или пароль.");
+  }
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    if (!validName(draft.fullName)) {
+      setMessage(
+        "ФИО: укажите минимум фамилию, имя и отчество — только буквами.",
+      );
+      return;
+    }
+    if (!validScore(draft.averageScore)) {
+      setMessage(
+        "Средний балл: число от 0 до 5, максимум 3 знака после запятой.",
+      );
+      return;
+    }
+    const r = await addApplication({
+      ...draft,
+      averageScore: Number(draft.averageScore.replace(",", ".")),
+    });
+    if (r.ok) {
+      setDraft(emptyDraft);
+      localStorage.removeItem(storageKey);
+      setMessage("Заявление добавлено в список.");
+      refreshItems();
+    } else setMessage("Ошибка: проверь данные, лимит заявлений и оригинал.");
+  }
+  async function remove(item: DraftApplication) {
+    if (!window.confirm(`Удалить заявление: ${item.fullName}?`)) return;
+    const r = await deleteApplication(item.id);
+    if (r.ok) {
+      setMessage("Заявление удалено из списка.");
+      refreshItems();
+    } else setMessage("Не удалось удалить заявление.");
+  }
+  async function save(item: DraftApplication) {
+    if (!validName(item.fullName) || !validScore(String(item.averageScore))) {
+      setMessage(
+        "Проверь ФИО и средний балл: от 0 до 5, до 3 знаков после запятой.",
+      );
+      return;
+    }
+    const r = await editApplication(item.id, {
+      ...item,
+      averageScore: Number(item.averageScore),
+    });
+    if (r.ok) {
+      setEditing(null);
+      setMessage("Изменения сохранены.");
+      refreshItems();
+    } else setMessage("Не удалось сохранить строку.");
+  }
+  if (!authenticated)
+    return (
+      <main className="admin">
+        <h1>Вход администратора</h1>
+        <form onSubmit={signIn}>
+          <label>
+            Логин
+            <input value={login} onChange={(e) => setLogin(e.target.value)} />
+          </label>
+          <label>
+            Пароль
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+          <button>Войти</button>
+        </form>
+        <p>{message}</p>
+      </main>
+    );
+  const program = programs.find((x) => x.code === selectedProgram),
+    visible = items.filter((x) => x.programCode === selectedProgram);
+  return (
+    <main className="admin wide">
+      <a href="/">← К спискам</a>
+      <h1>Приёмная комиссия</h1>
+      <label className="program-filter">
+        Специальность
+        <select
+          value={selectedProgram}
+          onChange={(e) => {
+            setSelectedProgram(e.target.value);
+            update({ programCode: e.target.value });
+          }}
+        >
+          {programs.map((x) => (
+            <option key={x.code} value={x.code}>
+              {x.code} — {x.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="admin-workspace">
+        <section className="draft-list">
+          <h2>
+            {program?.name} <span>{visible.length} заявлений</span>
+          </h2>
+          <table>
+            <thead>
+              <tr>
+                <th>СНИЛС</th>
+                <th>ФИО</th>
+                <th>Балл</th>
+                <th>Оригинал</th>
+                <th>Льгота</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((item) => {
+                const e = editing?.id === item.id;
+                const v = e ? editing : item;
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      {e ? (
+                        <input
+                          value={v.snils}
+                          onChange={(x) =>
+                            setEditing({
+                              ...v,
+                              snils: formatSNILS(x.target.value),
+                            })
+                          }
+                        />
+                      ) : (
+                        v.snils
+                      )}
+                    </td>
+                    <td>
+                      {e ? (
+                        <input
+                          value={v.fullName}
+                          onChange={(x) =>
+                            setEditing({ ...v, fullName: x.target.value })
+                          }
+                        />
+                      ) : (
+                        v.fullName
+                      )}
+                    </td>
+                    <td>
+                      {e ? (
+                        <input
+                          value={v.averageScore}
+                          onChange={(x) =>
+                            setEditing({
+                              ...v,
+                              averageScore: Number(x.target.value),
+                            })
+                          }
+                        />
+                      ) : (
+                        v.averageScore.toFixed(3)
+                      )}
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={v.originalGiven}
+                        disabled={!e}
+                        onChange={(x) =>
+                          setEditing({ ...v, originalGiven: x.target.checked })
+                        }
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={v.benefit}
+                        disabled={!e}
+                        onChange={(x) =>
+                          setEditing({ ...v, benefit: x.target.checked })
+                        }
+                      />
+                    </td>
+                    <td>
+                      {e ? (
+                        <>
+                          <button onClick={() => save(v)}>Сохранить</button>
+                          <button onClick={() => setEditing(null)}>
+                            Отмена
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => setEditing(item)}>Изм.</button>
+                          <button onClick={() => remove(item)}>Удалить</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+        <aside className="side-panel">
+          <div className="tabs">
+            <button
+              className={mode === "manual" ? "active" : ""}
+              onClick={() => setMode("manual")}
+            >
+              Вручную
+            </button>
+            <button
+              className={mode === "excel" ? "active" : ""}
+              onClick={() => setMode("excel")}
+            >
+              Excel
+            </button>
+          </div>
+          {mode === "manual" ? (
+            <>
+              <form onSubmit={add}>
+                <label>
+                  СНИЛС
+                  <input
+                    value={draft.snils}
+                    onChange={(e) =>
+                      update({ snils: formatSNILS(e.target.value) })
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  ФИО
+                  <input
+                    value={draft.fullName}
+                    onChange={(e) => update({ fullName: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  Средний балл
+                  <input
+                    value={draft.averageScore}
+                    onChange={(e) => update({ averageScore: e.target.value })}
+                    required
+                  />
+                </label>
+                <label>
+                  <input
+                    checked={draft.originalGiven}
+                    onChange={(e) =>
+                      update({ originalGiven: e.target.checked })
+                    }
+                    type="checkbox"
+                  />{" "}
+                  Оригинал
+                </label>
+                <label>
+                  <input
+                    checked={draft.benefit}
+                    onChange={(e) => update({ benefit: e.target.checked })}
+                    type="checkbox"
+                  />{" "}
+                  Льгота
+                </label>
+                <button>Добавить</button>
+              </form>
+              <section className="preview">
+                <span>ПРЕДПРОСМОТР</span>
+                <strong>{draft.fullName || "Фамилия Имя Отчество"}</strong>
+                <p>
+                  {draft.snils || "СНИЛС"} · {draft.averageScore || "—"}
+                </p>
+              </section>
+            </>
+          ) : (
+            <ExcelImport programCode={selectedProgram} existingSnils={visible.map(item => item.snils)} onImported={refreshItems} />
+          )}
+        </aside>
+      </div>
+      <p>{message}</p>
+    </main>
+  );
+}

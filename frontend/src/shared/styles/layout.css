@@ -1,0 +1,4 @@
+html, body, #root { min-height: 100%; }
+body { min-height: 100vh; }
+#root > main { min-height: 100vh; display: flex; flex-direction: column; }
+#root > main > footer { margin-top: auto; }

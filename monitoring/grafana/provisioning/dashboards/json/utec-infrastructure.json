@@ -1,0 +1,14 @@
+{
+  "uid": "utec-infrastructure",
+  "title": "УТЭК — Инфраструктура",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "API доступен", "gridPos": {"x": 0, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "up{job=\"admissions-api\"}", "refId": "A"}], "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "PostgreSQL доступен", "gridPos": {"x": 6, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "pg_up", "refId": "A"}], "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Redis доступен", "gridPos": {"x": 12, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "redis_up", "refId": "A"}], "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 4, "type": "timeseries", "title": "CPU VPS, %", "gridPos": {"x": 0, "y": 8, "w": 12, "h": 9}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "refId": "A"}]},
+    {"id": 5, "type": "timeseries", "title": "Свободная память VPS, байт", "gridPos": {"x": 12, "y": 8, "w": 12, "h": 9}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "node_memory_MemAvailable_bytes", "refId": "A"}]}
+  ]
+}

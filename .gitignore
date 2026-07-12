@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+!.env.production.example
+node_modules/
+dist/
+bin/
+coverage/
+*.tar.gz
+monitoring/prometheus-data/
+monitoring/grafana-data/

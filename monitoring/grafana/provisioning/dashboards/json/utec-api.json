@@ -1,0 +1,13 @@
+{
+  "uid": "utec-api",
+  "title": "УТЭК — API",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Запросов в секунду", "gridPos": {"x": 0, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "sum(rate(utec_http_requests_total[1m]))", "refId": "A"}], "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 2, "type": "stat", "title": "Среднее время ответа", "gridPos": {"x": 6, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "sum(rate(utec_http_request_duration_seconds_sum[1m])) / sum(rate(utec_http_request_duration_seconds_count[1m]))", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "s"}}, "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 3, "type": "stat", "title": "Ошибки 5xx за 5 минут", "gridPos": {"x": 12, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "sum(increase(utec_http_requests_total{request=~\".* 5..\"}[5m])) or vector(0)", "refId": "A"}], "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}},
+    {"id": 4, "type": "stat", "title": "Время работы API", "gridPos": {"x": 18, "y": 0, "w": 6, "h": 8}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "utec_process_uptime_seconds", "refId": "A"}], "fieldConfig": {"defaults": {"unit": "s", "color": {"mode": "fixed", "fixedColor": "green"}}}, "options": {"reduceOptions": {"calcs": ["lastNotNull"]}}}
+  ]
+}

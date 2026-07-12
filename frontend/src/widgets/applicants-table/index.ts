@@ -1,0 +1,1 @@
+export { ApplicantsTable } from './ui'
