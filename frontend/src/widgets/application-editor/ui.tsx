@@ -10,6 +10,7 @@ import { addApplication } from "../../features/add-application/api";
 import { editApplication } from "../../features/edit-application/api";
 import { deleteApplication } from "../../features/delete-application/api";
 import { ExcelImport } from "../../features/import-applications/ui";
+import { downloadAdmissionsReport } from "../../features/export-report/lib/download-report";
 
 type Draft = {
   snils: string;
@@ -66,7 +67,8 @@ export function AdminWorkspace() {
   const [authenticated, setAuthenticated] = useState(false),
     [programs, setPrograms] = useState<Program[]>([]),
     [items, setItems] = useState<DraftApplication[]>([]),
-    [message, setMessage] = useState("");
+    [message, setMessage] = useState(""),
+    [reportLoading, setReportLoading] = useState(false);
   const savedWorkspace = loadWorkspace();
   const [login, setLogin] = useState(""),
     [password, setPassword] = useState(""),
@@ -97,6 +99,18 @@ export function AdminWorkspace() {
   }, [selectedProgram, mode, editing]);
   function refreshItems() {
     adminApi.applications().then(setItems);
+  }
+  async function exportReport(program: Program, applications: DraftApplication[]) {
+    setReportLoading(true);
+    setMessage("");
+    try {
+      await downloadAdmissionsReport(program, applications);
+      setMessage("PDF-отчёт сформирован.");
+    } catch {
+      setMessage("Не удалось сформировать PDF-отчёт. Попробуйте ещё раз.");
+    } finally {
+      setReportLoading(false);
+    }
   }
   useEffect(() => {
     if (authenticated) {
@@ -173,24 +187,26 @@ export function AdminWorkspace() {
   }
   if (!authenticated)
     return (
-      <main className="admin">
-        <h1>Вход администратора</h1>
-        <form onSubmit={signIn}>
-          <label>
-            Логин
-            <input value={login} onChange={(e) => setLogin(e.target.value)} />
-          </label>
-          <label>
-            Пароль
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <button>Войти</button>
-        </form>
-        <p>{message}</p>
+      <main className="admin-login-page">
+        <section className="admin admin-login-card">
+          <h1>Вход администратора</h1>
+          <form onSubmit={signIn}>
+            <label>
+              Логин
+              <input value={login} onChange={(e) => setLogin(e.target.value)} />
+            </label>
+            <label>
+              Пароль
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+            <button>Войти</button>
+          </form>
+          <p>{message}</p>
+        </section>
       </main>
     );
   const program = programs.find((x) => x.code === selectedProgram),
@@ -215,6 +231,16 @@ export function AdminWorkspace() {
           ))}
         </select>
       </label>
+      {program && (
+        <button
+          type="button"
+          className="report-button"
+          disabled={reportLoading}
+          onClick={() => exportReport(program, visible)}
+        >
+          {reportLoading ? "Формируем PDF…" : "Скачать PDF-отчёт"}
+        </button>
+      )}
       <div className="admin-workspace">
         <section className="draft-list">
           <h2>

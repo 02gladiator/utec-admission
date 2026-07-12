@@ -1,5 +1,6 @@
 .admin { width: min(100% - 32px, 640px); margin: 44px auto; padding: 30px; background: #fff; border: 1px solid #dce5ed; border-radius: 14px; box-shadow: 0 12px 34px rgba(15, 53, 84, .10); }
 .admin h1 { color: #003f78; font-size: 29px; margin: 16px 0 6px; }
+.admin .report-button { width: fit-content; min-height: 38px; margin: 0 0 18px; padding: 0 14px; align-self: flex-start; font-size: 13px; }
 .admin > a { color: #0069b9; font-size: 14px; font-weight: 650; text-decoration: none; }
 .admin > p { color: #62778a; margin: 0 0 24px; }
 .admin form { display: grid; gap: 16px; margin-top: 26px; }
@@ -25,4 +26,6 @@
 .draft-list strong { color: #1d3d58; font-size: 14px; }.draft-list p { margin: 5px 0; color: #607488; font-size: 12px; }.draft-list small { color: #16834c; font-size: 12px; }
 .draft-list .delete { min-height: 34px; padding: 0 11px; background: #fff1f1; color: #b23030; font-size: 12px; }.draft-list .delete:hover { background: #f9dddd; }
 .admin .publish + p, .admin form + p { margin-top: 14px; padding: 11px 13px; border-radius: 7px; background: #eaf4fd; color: #1a547f; font-size: 14px; }
-@media (max-width: 540px) { .admin { width: calc(100% - 24px); margin: 20px auto; padding: 21px; } .admin h1 { font-size: 25px; } }
+#root > main.admin-login-page { display: grid; min-height: 100vh; place-items: center; padding: 24px; }
+.admin-login-card { width: min(100%, 440px); margin: 0; }
+@media (max-width: 540px) { .admin { width: calc(100% - 24px); margin: 20px auto; padding: 21px; } .admin-login-card { margin: 0; } .admin h1 { font-size: 25px; } }
