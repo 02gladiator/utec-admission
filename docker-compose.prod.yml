@@ -33,6 +33,22 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+  postgres-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: utec
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: utec_admissions
+      BACKUP_INTERVAL_SECONDS: "21600"
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup-postgres.sh:/usr/local/bin/backup-postgres.sh:ro
+    command: ["/bin/sh", "/usr/local/bin/backup-postgres.sh"]
+    depends_on:
+      postgres: { condition: service_healthy }
   prometheus:
     image: prom/prometheus:latest
     restart: unless-stopped

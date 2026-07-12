@@ -9,3 +9,4 @@ coverage/
 *.tar.gz
 monitoring/prometheus-data/
 monitoring/grafana-data/
+backups/
