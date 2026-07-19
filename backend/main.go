@@ -109,6 +109,7 @@ func main() {
 	mux.HandleFunc("GET /api/admin/programs", s.adminPrograms)
 	mux.HandleFunc("GET /api/admin/applications", s.adminApplications)
 	mux.HandleFunc("POST /api/admin/applications", s.createApplication)
+	mux.HandleFunc("DELETE /api/admin/applications", s.deleteProgramApplications)
 	mux.HandleFunc("POST /api/admin/applications/import", s.importApplications)
 	mux.HandleFunc("PUT /api/admin/applications/{id}", s.updateApplication)
 	mux.HandleFunc("DELETE /api/admin/applications/{id}", s.deleteApplication)
@@ -170,7 +171,8 @@ func respond(w http.ResponseWriter, status int, payload any) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 func normalize(v string) string {
-	return strings.Join(strings.Fields(strings.ToLower(strings.TrimSpace(v))), " ")
+	v = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(v)), "ё", "е")
+	return strings.Join(strings.Fields(v), " ")
 }
 func maskName(v string) string {
 	parts := strings.Fields(v)
@@ -378,6 +380,25 @@ func (s *server) deleteApplication(w http.ResponseWriter, r *http.Request) {
 	}
 	s.invalidatePublicLists(r.Context())
 	respond(w, 200, map[string]bool{"ok": true})
+}
+
+func (s *server) deleteProgramApplications(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		respond(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	code := strings.TrimSpace(r.URL.Query().Get("program"))
+	if code == "" {
+		respond(w, 400, map[string]string{"error": "program is required"})
+		return
+	}
+	result, err := s.db.Exec(r.Context(), `DELETE FROM applications WHERE program_id=(SELECT id FROM programs WHERE code=$1)`, code)
+	if err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
+	s.invalidatePublicLists(r.Context())
+	respond(w, 200, map[string]any{"ok": true, "deleted": result.RowsAffected()})
 }
 
 func (s *server) updateApplication(w http.ResponseWriter, r *http.Request) {

@@ -5,4 +5,5 @@ export const adminApi = {
   programs: () => fetch('/api/admin/programs').then(r => r.json() as Promise<Program[]>),
   applications: () => fetch('/api/admin/applications').then(r => r.json() as Promise<Application[]>),
   remove: (id: number) => fetch(`/api/admin/applications/${id}`, { method: 'DELETE' }),
+  removeByProgram: (programCode: string) => fetch(`/api/admin/applications?program=${encodeURIComponent(programCode)}`, { method: 'DELETE' }),
 }

@@ -62,6 +62,9 @@ function loadWorkspace() {
     return {};
   }
 }
+function normalizeName(value: string) {
+  return value.toLowerCase().replaceAll("ё", "е").trim().replace(/\s+/g, " ");
+}
 
 export function AdminWorkspace() {
   const [authenticated, setAuthenticated] = useState(false),
@@ -76,6 +79,7 @@ export function AdminWorkspace() {
     [selectedProgram, setSelectedProgram] = useState(
       savedWorkspace.selectedProgram || "21.02.19",
     ),
+    [adminSearch, setAdminSearch] = useState(savedWorkspace.adminSearch || ""),
     [mode, setMode] = useState<"manual" | "excel">(
       savedWorkspace.mode === "excel" ? "excel" : "manual",
     );
@@ -94,9 +98,9 @@ export function AdminWorkspace() {
   useEffect(() => {
     localStorage.setItem(
       workspaceStorageKey,
-      JSON.stringify({ selectedProgram, mode, editing }),
+      JSON.stringify({ selectedProgram, adminSearch, mode, editing }),
     );
-  }, [selectedProgram, mode, editing]);
+  }, [selectedProgram, adminSearch, mode, editing]);
   function refreshItems() {
     adminApi.applications().then(setItems);
   }
@@ -168,6 +172,19 @@ export function AdminWorkspace() {
       refreshItems();
     } else setMessage("Не удалось удалить заявление.");
   }
+  async function removeProgramApplications() {
+    if (!program || programItems.length === 0) return;
+    const confirmed = window.confirm(
+      `Удалить все заявления (${programItems.length}) по специальности «${program.name}»? Это действие нельзя отменить.`,
+    );
+    if (!confirmed) return;
+    const response = await adminApi.removeByProgram(selectedProgram);
+    if (response.ok) {
+      setEditing(null);
+      setMessage(`Удалено заявлений: ${programItems.length}.`);
+      refreshItems();
+    } else setMessage("Не удалось удалить заявления по специальности.");
+  }
   async function save(item: DraftApplication) {
     if (!validName(item.fullName) || !validScore(String(item.averageScore))) {
       setMessage(
@@ -209,8 +226,12 @@ export function AdminWorkspace() {
         </section>
       </main>
     );
-  const program = programs.find((x) => x.code === selectedProgram),
-    visible = items.filter((x) => x.programCode === selectedProgram);
+  const program = programs.find((x) => x.code === selectedProgram);
+  const programItems = items.filter((x) => x.programCode === selectedProgram);
+  const normalizedSearch = normalizeName(adminSearch);
+  const visible = normalizedSearch
+    ? programItems.filter((x) => normalizeName(x.fullName).includes(normalizedSearch))
+    : programItems;
   return (
     <main className="admin wide">
       <a href="/">← К спискам</a>
@@ -231,21 +252,40 @@ export function AdminWorkspace() {
           ))}
         </select>
       </label>
+      <label className="admin-search">
+        Поиск по ФИО
+        <input
+          value={adminSearch}
+          onChange={(e) => setAdminSearch(e.target.value)}
+          placeholder="Начните вводить ФИО"
+        />
+      </label>
       {program && (
-        <button
-          type="button"
-          className="report-button"
-          disabled={reportLoading}
-          onClick={() => exportReport(program, visible)}
-        >
-          {reportLoading ? "Формируем PDF…" : "Скачать PDF-отчёт"}
-        </button>
+        <>
+          <button
+            type="button"
+            className="report-button"
+            disabled={reportLoading}
+            onClick={() => exportReport(program, programItems)}
+          >
+            {reportLoading ? "Формируем PDF…" : "Скачать PDF-отчёт"}
+          </button>
+          <button
+            type="button"
+            className="delete-program"
+            disabled={programItems.length === 0}
+            onClick={removeProgramApplications}
+          >
+            Удалить все заявления по специальности
+          </button>
+        </>
       )}
       <div className="admin-workspace">
         <section className="draft-list">
           <h2>
-            {program?.name} <span>{visible.length} заявлений</span>
+            {program?.name} <span>{visible.length}{normalizedSearch ? ` из ${programItems.length}` : ""} заявлений</span>
           </h2>
+          <div className="admin-table-wrap">
           <table>
             <thead>
               <tr>
@@ -345,6 +385,7 @@ export function AdminWorkspace() {
               })}
             </tbody>
           </table>
+          </div>
         </section>
         <aside className="side-panel">
           <div className="tabs">
