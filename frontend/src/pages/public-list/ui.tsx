@@ -51,6 +51,7 @@ export default function App() {
       </div>
       {data && <><div className="summary"><div><b>{data.program.budgetSeats}</b><span>бюджетных мест</span></div><div><b>{data.program.paidSeats}</b><span>коммерческих мест</span></div><p>Рейтинг обновляется после публикации приёмной комиссией.</p></div>
       <div className="legend"><span className="dot green" />В пределах бюджетных мест <span className="dot blue" />Оригинал документа</div>
+      <p className="table-scroll-hint" aria-hidden="true">← Листайте таблицу влево и вправо →</p>
       <div className="table-wrap"><table><thead><tr><th>ФИО</th><th>Средний балл</th><th>Оригинал</th><th>Общий рейтинг</th><th>Рейтинг с оригиналом</th></tr></thead><tbody>{data.applications.length === 0 ? <tr><td colSpan={5}>Заявлений пока нет.</td></tr> : data.applications.map(row => <tr ref={row.matched ? matchedRowRef : undefined} key={`${row.name}-${row.overallRank}`} className={`${row.budgetOverall ? 'budget' : ''} ${row.matched ? 'matched' : ''}`}><td>{row.name}</td><td className="score">{row.averageScore.toFixed(3).replace('.', ',')}</td><td><span className={row.originalGiven ? 'check' : 'empty'}>{row.originalGiven ? '✓ Есть' : '—'}</span></td><td>{row.overallRank}</td><td>{row.originalRank ?? '—'}</td></tr>)}</tbody></table></div>{loading && <p className="updating">Обновляем результат поиска…</p>}</>}
     </section>
     <footer>© Уфимский торгово-экономический колледж · Приёмная комиссия</footer>
