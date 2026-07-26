@@ -7,9 +7,18 @@ type PdfMakeModule = {
   createPdf: (document: TDocumentDefinitions) => { download: (fileName: string) => void };
 };
 
+export type ReportFilters = {
+  originalOnly?: boolean;
+  benefitOnly?: boolean;
+};
+
 const yesNo = (value: boolean) => (value ? "Да" : "Нет");
 
-export async function downloadAdmissionsReport(program: Program, applications: Application[]) {
+export async function downloadAdmissionsReport(
+  program: Program,
+  applications: Application[],
+  filters: ReportFilters = {},
+) {
   const pdfMakeModule = await import("pdfmake/build/pdfmake");
   const pdfMake = ((pdfMakeModule as { default?: unknown }).default ?? pdfMakeModule) as PdfMakeModule;
   const fontModule = await import("pdfmake/build/vfs_fonts");
@@ -20,7 +29,16 @@ export async function downloadAdmissionsReport(program: Program, applications: A
     dateStyle: "long",
     timeStyle: "short",
   }).format(new Date());
-  const rows = applications
+  const filteredApplications = applications.filter(
+    (application) =>
+      (!filters.originalOnly || application.originalGiven) &&
+      (!filters.benefitOnly || application.benefit),
+  );
+  const filterDescription = [
+    filters.originalOnly ? "только с оригиналом" : "",
+    filters.benefitOnly ? "только льготники" : "",
+  ].filter(Boolean).join(", ") || "все заявления";
+  const rows = filteredApplications
     .slice()
     .sort((a, b) => b.averageScore - a.averageScore || a.fullName.localeCompare(b.fullName, "ru"))
     .map((application, index) => [
@@ -38,6 +56,7 @@ export async function downloadAdmissionsReport(program: Program, applications: A
     content: [
       { text: "Конкурсный список абитуриентов", style: "title" },
       { text: `${program.code} - ${program.name}`, style: "program" },
+      { text: `Отбор: ${filterDescription}`, style: "filters" },
       { text: `Дата выгрузки: ${generatedAt}`, style: "date" },
       {
         margin: [0, 20, 0, 0],
@@ -56,16 +75,18 @@ export async function downloadAdmissionsReport(program: Program, applications: A
           paddingBottom: () => 6,
         },
       },
-      { text: `Всего заявлений: ${applications.length}`, style: "total" },
+      { text: `Всего заявлений: ${filteredApplications.length}`, style: "total" },
     ],
     styles: {
       title: { fontSize: 17, bold: true, color: "#123a5f" },
       program: { fontSize: 12, bold: true, margin: [0, 9, 0, 0] },
+      filters: { fontSize: 9, color: "#365b7d", margin: [0, 5, 0, 0] },
       date: { fontSize: 9, color: "#5d6c79", margin: [0, 5, 0, 0] },
       total: { fontSize: 9, color: "#5d6c79", margin: [0, 12, 0, 0] },
     },
   };
 
-  const fileName = `konkursnyy-spisok-${program.code.replaceAll(".", "-")}.pdf`;
+  const suffix = [filters.originalOnly ? "original" : "", filters.benefitOnly ? "benefit" : ""].filter(Boolean).join("-");
+  const fileName = `konkursnyy-spisok-${program.code.replaceAll(".", "-")}${suffix ? `-${suffix}` : ""}.pdf`;
   pdfMake.createPdf(document).download(fileName);
 }

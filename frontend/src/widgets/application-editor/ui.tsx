@@ -80,6 +80,8 @@ export function AdminWorkspace() {
       savedWorkspace.selectedProgram || "21.02.19",
     ),
     [adminSearch, setAdminSearch] = useState(savedWorkspace.adminSearch || ""),
+    [reportOriginalOnly, setReportOriginalOnly] = useState(Boolean(savedWorkspace.reportOriginalOnly)),
+    [reportBenefitOnly, setReportBenefitOnly] = useState(Boolean(savedWorkspace.reportBenefitOnly)),
     [mode, setMode] = useState<"manual" | "excel">(
       savedWorkspace.mode === "excel" ? "excel" : "manual",
     );
@@ -98,9 +100,9 @@ export function AdminWorkspace() {
   useEffect(() => {
     localStorage.setItem(
       workspaceStorageKey,
-      JSON.stringify({ selectedProgram, adminSearch, mode, editing }),
+      JSON.stringify({ selectedProgram, adminSearch, reportOriginalOnly, reportBenefitOnly, mode, editing }),
     );
-  }, [selectedProgram, adminSearch, mode, editing]);
+  }, [selectedProgram, adminSearch, reportOriginalOnly, reportBenefitOnly, mode, editing]);
   function refreshItems() {
     adminApi.applications().then(setItems);
   }
@@ -108,7 +110,7 @@ export function AdminWorkspace() {
     setReportLoading(true);
     setMessage("");
     try {
-      await downloadAdmissionsReport(program, applications);
+      await downloadAdmissionsReport(program, applications, { originalOnly: reportOriginalOnly, benefitOnly: reportBenefitOnly });
       setMessage("PDF-отчёт сформирован.");
     } catch {
       setMessage("Не удалось сформировать PDF-отчёт. Попробуйте ещё раз.");
@@ -232,6 +234,11 @@ export function AdminWorkspace() {
   const visible = normalizedSearch
     ? programItems.filter((x) => normalizeName(x.fullName).includes(normalizedSearch))
     : programItems;
+  const reportItems = programItems.filter(
+    (item) =>
+      (!reportOriginalOnly || item.originalGiven) &&
+      (!reportBenefitOnly || item.benefit),
+  );
   return (
     <main className="admin wide">
       <a href="/">← К спискам</a>
@@ -262,14 +269,27 @@ export function AdminWorkspace() {
       </label>
       {program && (
         <>
+        <section className="report-controls">
+          <div className="report-filters">
+            <label>
+              <input type="checkbox" checked={reportOriginalOnly} onChange={(e) => setReportOriginalOnly(e.target.checked)} />
+              Только с оригиналом
+            </label>
+            <label>
+              <input type="checkbox" checked={reportBenefitOnly} onChange={(e) => setReportBenefitOnly(e.target.checked)} />
+              Только льготники
+            </label>
+          </div>
           <button
             type="button"
             className="report-button"
-            disabled={reportLoading}
+            disabled={reportLoading || reportItems.length === 0}
             onClick={() => exportReport(program, programItems)}
           >
             {reportLoading ? "Формируем PDF…" : "Скачать PDF-отчёт"}
           </button>
+          <span className="report-count">В отчёте: {reportItems.length}</span>
+        </section>
           <button
             type="button"
             className="delete-program"
