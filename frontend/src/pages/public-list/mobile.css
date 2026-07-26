@@ -41,6 +41,15 @@ body,
   box-shadow: 0 1px 0 #dce5ed;
 }
 
+.public-list .amber {
+  background: #d99315;
+}
+
+.public-list .benefit {
+  font-weight: 650;
+  color: #9a6908;
+}
+
 .table-scroll-hint {
   display: none;
 }
@@ -51,7 +60,7 @@ body,
   }
 
   .public-list .table-wrap table {
-    min-width: 690px;
+    min-width: 800px;
   }
 
   .table-scroll-hint {

@@ -43,7 +43,7 @@ type applicationRow struct {
 	Name           string  `json:"name"`
 	AverageScore   float64 `json:"averageScore"`
 	OriginalGiven  bool    `json:"originalGiven"`
-	Benefit        bool    `json:"benefit,omitempty"`
+	Benefit        bool    `json:"benefit"`
 	OverallRank    int     `json:"overallRank"`
 	OriginalRank   *int    `json:"originalRank,omitempty"`
 	BudgetOverall  bool    `json:"budgetOverall"`
@@ -238,7 +238,7 @@ func (s *server) publicApplications(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT a.full_name,x.average_score::float8,x.original_given FROM applications x JOIN applicants a ON a.id=x.applicant_id JOIN programs p ON p.id=x.program_id WHERE p.code=$1 AND ($2=false OR x.original_given=true) ORDER BY x.average_score DESC`, code, originalOnly)
+	rows, err := s.db.Query(r.Context(), `SELECT a.full_name,x.average_score::float8,x.original_given,x.benefit FROM applications x JOIN applicants a ON a.id=x.applicant_id JOIN programs p ON p.id=x.program_id WHERE p.code=$1 AND ($2=false OR x.original_given=true) ORDER BY x.benefit DESC,x.average_score DESC,a.full_name ASC`, code, originalOnly)
 	if err != nil {
 		respond(w, 500, map[string]string{"error": "database error"})
 		return
@@ -248,7 +248,7 @@ func (s *server) publicApplications(w http.ResponseWriter, r *http.Request) {
 	originalRank := 0
 	for rows.Next() {
 		var item applicationRow
-		if err := rows.Scan(&item.Name, &item.AverageScore, &item.OriginalGiven); err != nil {
+		if err := rows.Scan(&item.Name, &item.AverageScore, &item.OriginalGiven, &item.Benefit); err != nil {
 			respond(w, 500, map[string]string{"error": "database error"})
 			return
 		}
@@ -336,7 +336,7 @@ func (s *server) adminApplications(w http.ResponseWriter, r *http.Request) {
 		respond(w, 401, map[string]string{"error": "unauthorized"})
 		return
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT x.id,a.snils,a.full_name,p.code,p.name,x.average_score::float8,x.original_given,x.benefit FROM applications x JOIN applicants a ON a.id=x.applicant_id JOIN programs p ON p.id=x.program_id ORDER BY p.code,x.average_score DESC`)
+	rows, err := s.db.Query(r.Context(), `SELECT x.id,a.snils,a.full_name,p.code,p.name,x.average_score::float8,x.original_given,x.benefit FROM applications x JOIN applicants a ON a.id=x.applicant_id JOIN programs p ON p.id=x.program_id ORDER BY p.code,x.benefit DESC,x.average_score DESC,a.full_name ASC`)
 	if err != nil {
 		respond(w, 500, map[string]string{"error": "database error"})
 		return

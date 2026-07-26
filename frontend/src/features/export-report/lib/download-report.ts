@@ -40,7 +40,7 @@ export async function downloadAdmissionsReport(
   ].filter(Boolean).join(", ") || "все заявления";
   const rows = filteredApplications
     .slice()
-    .sort((a, b) => b.averageScore - a.averageScore || a.fullName.localeCompare(b.fullName, "ru"))
+    .sort((a, b) => Number(b.benefit) - Number(a.benefit) || b.averageScore - a.averageScore || a.fullName.localeCompare(b.fullName, "ru"))
     .map((application, index) => [
       String(index + 1),
       application.fullName,
