@@ -45,6 +45,13 @@ function validName(value: string) {
 function validScore(value: string) {
   return /^(?:[0-4](?:[.,]\d{1,3})?|5(?:[.,]0{1,3})?)$/.test(value.trim());
 }
+function sanitizeScoreInput(value: string) {
+  const normalized = value.replace(/\./g, ",").replace(/[^\d,]/g, "");
+  const [whole, ...fractionParts] = normalized.split(",");
+  if (!whole || !/^[0-5]$/.test(whole)) return "";
+  const fraction = fractionParts.join("").slice(0, 3);
+  return fractionParts.length ? `${whole},${fraction}` : whole;
+}
 function loadDraft(): Draft {
   try {
     return {
@@ -88,6 +95,10 @@ export function AdminWorkspace() {
   const [editing, setEditing] = useState<DraftApplication | null>(
     savedWorkspace.editing || null,
   );
+  const [editingScore, setEditingScore] = useState(
+    savedWorkspace.editingScore ||
+      (savedWorkspace.editing ? Number(savedWorkspace.editing.averageScore).toFixed(3).replace(".", ",") : ""),
+  );
   useEffect(() => {
     fetch("/api/admin/session")
       .then((r) => r.json())
@@ -100,9 +111,9 @@ export function AdminWorkspace() {
   useEffect(() => {
     localStorage.setItem(
       workspaceStorageKey,
-      JSON.stringify({ selectedProgram, adminSearch, reportOriginalOnly, reportBenefitOnly, mode, editing }),
+      JSON.stringify({ selectedProgram, adminSearch, reportOriginalOnly, reportBenefitOnly, mode, editing, editingScore }),
     );
-  }, [selectedProgram, adminSearch, reportOriginalOnly, reportBenefitOnly, mode, editing]);
+  }, [selectedProgram, adminSearch, reportOriginalOnly, reportBenefitOnly, mode, editing, editingScore]);
   function refreshItems() {
     adminApi.applications().then(setItems);
   }
@@ -183,12 +194,13 @@ export function AdminWorkspace() {
     const response = await adminApi.removeByProgram(selectedProgram);
     if (response.ok) {
       setEditing(null);
+      setEditingScore("");
       setMessage(`Удалено заявлений: ${programItems.length}.`);
       refreshItems();
     } else setMessage("Не удалось удалить заявления по специальности.");
   }
   async function save(item: DraftApplication) {
-    if (!validName(item.fullName) || !validScore(String(item.averageScore))) {
+    if (!validName(item.fullName) || !validScore(editingScore)) {
       setMessage(
         "Проверь ФИО и средний балл: от 0 до 5, до 3 знаков после запятой.",
       );
@@ -196,10 +208,11 @@ export function AdminWorkspace() {
     }
     const r = await editApplication(item.id, {
       ...item,
-      averageScore: Number(item.averageScore),
+      averageScore: Number(editingScore.replace(",", ".")),
     });
     if (r.ok) {
       setEditing(null);
+      setEditingScore("");
       setMessage("Изменения сохранены.");
       refreshItems();
     } else setMessage("Не удалось сохранить строку.");
@@ -353,13 +366,9 @@ export function AdminWorkspace() {
                     <td>
                       {e ? (
                         <input
-                          value={v.averageScore}
-                          onChange={(x) =>
-                            setEditing({
-                              ...v,
-                              averageScore: Number(x.target.value),
-                            })
-                          }
+                          value={editingScore}
+                          inputMode="decimal"
+                          onChange={(x) => setEditingScore(sanitizeScoreInput(x.target.value))}
                         />
                       ) : (
                         v.averageScore.toFixed(3)
@@ -389,13 +398,13 @@ export function AdminWorkspace() {
                       {e ? (
                         <>
                           <button onClick={() => save(v)}>Сохранить</button>
-                          <button onClick={() => setEditing(null)}>
+                          <button onClick={() => { setEditing(null); setEditingScore(""); }}>
                             Отмена
                           </button>
                         </>
                       ) : (
                         <>
-                          <button onClick={() => setEditing(item)}>Изм.</button>
+                          <button onClick={() => { setEditing(item); setEditingScore(item.averageScore.toFixed(3).replace(".", ",")); }}>Изм.</button>
                           <button onClick={() => remove(item)}>Удалить</button>
                         </>
                       )}
@@ -447,7 +456,8 @@ export function AdminWorkspace() {
                   Средний балл
                   <input
                     value={draft.averageScore}
-                    onChange={(e) => update({ averageScore: e.target.value })}
+                    inputMode="decimal"
+                    onChange={(e) => update({ averageScore: sanitizeScoreInput(e.target.value) })}
                     required
                   />
                 </label>
