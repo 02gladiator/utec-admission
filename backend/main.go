@@ -48,6 +48,7 @@ type applicationRow struct {
 	OriginalRank   *int    `json:"originalRank,omitempty"`
 	BudgetOverall  bool    `json:"budgetOverall"`
 	BudgetOriginal bool    `json:"budgetOriginal"`
+	PaidOverall    bool    `json:"paidOverall"`
 	Matched        bool    `json:"matched"`
 }
 type createApplicationRequest struct {
@@ -260,6 +261,7 @@ func (s *server) publicApplications(w http.ResponseWriter, r *http.Request) {
 		}
 		item.BudgetOverall = item.OverallRank <= selected.BudgetSeats
 		item.BudgetOriginal = item.OriginalGiven && originalRank <= selected.BudgetSeats
+		item.PaidOverall = item.OverallRank > selected.BudgetSeats && item.OverallRank <= selected.BudgetSeats+selected.PaidSeats
 		item.Matched = search != "" && normalize(item.Name) == search
 		if !item.Matched {
 			item.Name = maskName(item.Name)

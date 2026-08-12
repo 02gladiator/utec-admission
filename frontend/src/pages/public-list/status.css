@@ -1,0 +1,7 @@
+.public-list .purple { background: #7654b8; }
+.public-list .amber { background: #d99315; }
+.public-list .paid { background: #f5f2fc; }
+.public-list .benefit { font-weight: 650; color: #9a6908; }
+.public-list .admission-status { display: inline-block; margin-top: 5px; padding: 3px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.public-list .budget-status { background: #d9f2e3; color: #167244; }
+.public-list .paid-status { background: #ded2ff; color: #4e3587; }
