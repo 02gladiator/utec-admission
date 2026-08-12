@@ -54,6 +54,10 @@ body,
   display: none;
 }
 
+.legend-short {
+  display: none;
+}
+
 @media (max-width: 760px) {
   .public-list .content {
     width: 100%;
@@ -61,6 +65,30 @@ body,
 
   .public-list .table-wrap table {
     min-width: 800px;
+  }
+
+  .public-list .legend {
+    gap: 8px 12px;
+    align-items: center;
+  }
+
+  .public-list .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  .public-list .legend .dot {
+    margin-left: 0;
+  }
+
+  .legend-full {
+    display: none;
+  }
+
+  .legend-short {
+    display: inline;
   }
 
   .table-scroll-hint {
