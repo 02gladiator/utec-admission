@@ -54,6 +54,13 @@ body,
   display: none;
 }
 
+.published-original-notice {
+  margin: 0;
+  color: #40546a;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .legend-short {
   display: none;
 }

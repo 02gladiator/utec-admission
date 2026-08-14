@@ -34,10 +34,11 @@ type server struct {
 	durations                 map[string]float64
 }
 type program struct {
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	BudgetSeats int    `json:"budgetSeats"`
-	PaidSeats   int    `json:"paidSeats"`
+	Code               string `json:"code"`
+	Name               string `json:"name"`
+	BudgetSeats        int    `json:"budgetSeats"`
+	PaidSeats          int    `json:"paidSeats"`
+	PublicOriginalOnly bool   `json:"publicOriginalOnly"`
 }
 type applicationRow struct {
 	Name           string  `json:"name"`
@@ -73,7 +74,7 @@ type importApplicationRequest struct {
 }
 
 var initialPrograms = []program{
-	{"21.02.19", "Землеустройство", 25, 30}, {"38.02.01", "Экономика и бухгалтерский учёт (по отраслям)", 25, 0}, {"38.02.02", "Страховое дело", 25, 0}, {"38.02.03", "Операционная деятельность в логистике", 50, 30}, {"38.02.06", "Финансы", 0, 25}, {"38.02.07", "Банковское дело", 25, 30}, {"38.02.08", "Торговое дело", 75, 0}, {"43.02.16", "Туризм и гостеприимство", 50, 50}, {"43.02.15", "Поварское и кондитерское дело", 25, 0}, {"42.02.04", "Юриспруденция", 0, 50},
+	{"21.02.19", "Землеустройство", 25, 30, false}, {"38.02.01", "Экономика и бухгалтерский учёт (по отраслям)", 25, 0, false}, {"38.02.02", "Страховое дело", 25, 0, false}, {"38.02.03", "Операционная деятельность в логистике", 50, 30, false}, {"38.02.06", "Финансы", 0, 25, false}, {"38.02.07", "Банковское дело", 25, 30, false}, {"38.02.08", "Торговое дело", 75, 0, false}, {"43.02.16", "Туризм и гостеприимство", 50, 50, false}, {"43.02.15", "Поварское и кондитерское дело", 25, 0, false}, {"42.02.04", "Юриспруденция", 0, 50, false},
 }
 
 func main() {
@@ -108,6 +109,7 @@ func main() {
 	mux.HandleFunc("POST /api/admin/logout", s.logout)
 	mux.HandleFunc("GET /api/admin/session", s.session)
 	mux.HandleFunc("GET /api/admin/programs", s.adminPrograms)
+	mux.HandleFunc("PUT /api/admin/programs/{code}/publication", s.updateProgramPublication)
 	mux.HandleFunc("GET /api/admin/applications", s.adminApplications)
 	mux.HandleFunc("POST /api/admin/applications", s.createApplication)
 	mux.HandleFunc("DELETE /api/admin/applications", s.deleteProgramApplications)
@@ -188,7 +190,7 @@ func maskName(v string) string {
 }
 
 func (s *server) programs(ctx context.Context) ([]program, error) {
-	rows, err := s.db.Query(ctx, `SELECT code,name,budget_seats,paid_seats FROM programs ORDER BY code`)
+	rows, err := s.db.Query(ctx, `SELECT code,name,budget_seats,paid_seats,public_original_only FROM programs ORDER BY code`)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +198,7 @@ func (s *server) programs(ctx context.Context) ([]program, error) {
 	result := []program{}
 	for rows.Next() {
 		var p program
-		if err := rows.Scan(&p.Code, &p.Name, &p.BudgetSeats, &p.PaidSeats); err != nil {
+		if err := rows.Scan(&p.Code, &p.Name, &p.BudgetSeats, &p.PaidSeats, &p.PublicOriginalOnly); err != nil {
 			return nil, err
 		}
 		result = append(result, p)
@@ -231,6 +233,7 @@ func (s *server) publicApplications(w http.ResponseWriter, r *http.Request) {
 		respond(w, 400, map[string]string{"error": "unknown program"})
 		return
 	}
+	originalOnly = originalOnly || selected.PublicOriginalOnly
 	cacheKey := fmt.Sprintf("public-list:%s:%t", code, originalOnly)
 	if search == "" {
 		if cached, err := s.redis.Get(r.Context(), cacheKey).Bytes(); err == nil {
@@ -332,6 +335,31 @@ func (s *server) adminPrograms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.publicPrograms(w, r)
+}
+
+func (s *server) updateProgramPublication(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		respond(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	var input struct {
+		PublicOriginalOnly bool `json:"publicOriginalOnly"`
+	}
+	if json.NewDecoder(r.Body).Decode(&input) != nil {
+		respond(w, 400, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	result, err := s.db.Exec(r.Context(), `UPDATE programs SET public_original_only=$1,updated_at=now() WHERE code=$2`, input.PublicOriginalOnly, r.PathValue("code"))
+	if err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
+	if result.RowsAffected() == 0 {
+		respond(w, 404, map[string]string{"error": "program not found"})
+		return
+	}
+	s.invalidatePublicLists(r.Context())
+	respond(w, 200, map[string]bool{"ok": true})
 }
 func (s *server) adminApplications(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAdmin(w, r) {

@@ -3,7 +3,7 @@ import logo from '../../shared/assets/utec-logo.png'
 import './mobile.css'
 import './status.css'
 
-type Program = { code: string; name: string; budgetSeats: number; paidSeats: number }
+type Program = { code: string; name: string; budgetSeats: number; paidSeats: number; publicOriginalOnly: boolean }
 type Row = { name: string; averageScore: number; originalGiven: boolean; benefit: boolean; overallRank: number; originalRank?: number; budgetOverall: boolean; budgetOriginal: boolean; paidOverall: boolean; matched: boolean }
 type ListResponse = { program: Program; applications: Row[] }
 const publicStateKey = 'utec-public-list-state'
@@ -22,6 +22,7 @@ export default function App() {
   const [data, setData] = useState<ListResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const matchedRowRef = useRef<HTMLTableRowElement | null>(null)
+  const publicOriginalOnly = programs.find(p => p.code === programCode)?.publicOriginalOnly || data?.program.publicOriginalOnly || false
 
   useEffect(() => { fetch('/api/public/programs').then(r => r.json()).then(setPrograms) }, [])
   useEffect(() => {
@@ -48,7 +49,7 @@ export default function App() {
       <div className="filters">
         <label>Специальность<select value={programCode} onChange={e => setProgramCode(e.target.value)}>{programs.map(p => <option key={p.code} value={p.code}>{p.code} — {p.name}</option>)}</select></label>
         <label className="search">Ваше ФИО<input value={fio} onChange={e => setFio(e.target.value)} placeholder="Например, Иванов Иван Иванович" autoComplete="name" /></label>
-        <label className="toggle"><input type="checkbox" checked={onlyOriginal} onChange={e => setOnlyOriginal(e.target.checked)} /><span>Только с оригиналом</span></label>
+        {publicOriginalOnly ? <p className="published-original-notice">Опубликован список абитуриентов, предоставивших оригиналы документов.</p> : <label className="toggle"><input type="checkbox" checked={onlyOriginal} onChange={e => setOnlyOriginal(e.target.checked)} /><span>Только с оригиналом</span></label>}
       </div>
       {data && <><div className="summary"><div><b>{data.program.budgetSeats}</b><span>бюджетных мест</span></div><div><b>{data.program.paidSeats}</b><span>коммерческих мест</span></div><p>Рейтинг обновляется после публикации приёмной комиссией.</p></div>
       <div className="legend"><span className="legend-item"><span className="dot green" /><span className="legend-full">В пределах бюджетных мест</span><span className="legend-short">Бюджет</span></span><span className="legend-item"><span className="dot purple" /><span className="legend-full">Рекомендованы к зачислению на платной основе</span><span className="legend-short">Платная основа</span></span><span className="legend-item"><span className="dot blue" /><span className="legend-full">Оригинал документа</span><span className="legend-short">Оригинал</span></span><span className="legend-item"><span className="dot amber" />Льгота</span></div>

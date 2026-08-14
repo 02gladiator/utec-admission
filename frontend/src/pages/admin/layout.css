@@ -1,5 +1,6 @@
 .admin.wide { width: min(100% - 48px, 1440px); max-width: none; }
 .program-filter { width: min(680px, 100%); margin: 24px 0; }
+.publication-toggle { width: fit-content; margin: -8px 0 18px; }
 .admin-search { width: min(680px, 100%); margin: 0 0 18px; }
 .admin-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 24px; align-items: start; }
 .side-panel { padding: 18px; border: 1px solid #dce5ed; border-radius: 10px; background: #f8fbfe; }

@@ -78,7 +78,8 @@ export function AdminWorkspace() {
     [programs, setPrograms] = useState<Program[]>([]),
     [items, setItems] = useState<DraftApplication[]>([]),
     [message, setMessage] = useState(""),
-    [reportLoading, setReportLoading] = useState(false);
+    [reportLoading, setReportLoading] = useState(false),
+    [publicationUpdating, setPublicationUpdating] = useState(false);
   const savedWorkspace = loadWorkspace();
   const [login, setLogin] = useState(""),
     [password, setPassword] = useState(""),
@@ -199,6 +200,18 @@ export function AdminWorkspace() {
       refreshItems();
     } else setMessage("Не удалось удалить заявления по специальности.");
   }
+  async function updatePublication(value: boolean) {
+    if (!program) return;
+    const action = value ? "показывать только заявления с оригиналами" : "снова показывать все заявления";
+    if (!window.confirm(`Для специальности «${program.name}» публичный список будет ${action}. Продолжить?`)) return;
+    setPublicationUpdating(true);
+    const response = await adminApi.updateProgramPublication(program.code, value);
+    if (response.ok) {
+      setPrograms((current) => current.map((item) => item.code === program.code ? { ...item, publicOriginalOnly: value } : item));
+      setMessage(value ? "Публично отображаются только заявления с оригиналами." : "Публично снова отображаются все заявления.");
+    } else setMessage("Не удалось изменить режим публикации.");
+    setPublicationUpdating(false);
+  }
   async function save(item: DraftApplication) {
     if (!validName(item.fullName) || !validScore(editingScore)) {
       setMessage(
@@ -271,6 +284,15 @@ export function AdminWorkspace() {
             </option>
           ))}
         </select>
+      </label>
+      <label className="publication-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(program?.publicOriginalOnly)}
+          disabled={!program || publicationUpdating}
+          onChange={(e) => updatePublication(e.target.checked)}
+        />
+        Показывать публично только заявления с оригиналами
       </label>
       <label className="admin-search">
         Поиск по ФИО
