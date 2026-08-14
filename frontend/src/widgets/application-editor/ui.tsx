@@ -5,7 +5,7 @@ import "../applicants-table/table.css";
 import "../applicants-table/desktop.css";
 import type { Program } from "../../entities/program/model/types";
 import type { Application as DraftApplication } from "../../entities/application/model/types";
-import { adminApi } from "../../shared/api/admin";
+import { adminApi, type PublicationLabels } from "../../shared/api/admin";
 import { addApplication } from "../../features/add-application/api";
 import { editApplication } from "../../features/edit-application/api";
 import { deleteApplication } from "../../features/delete-application/api";
@@ -31,6 +31,19 @@ const emptyDraft: Draft = {
   benefit: false,
 };
 const namePart = /^[\p{L}-]+$/u;
+const defaultPublicationLabels: PublicationLabels = {
+  budgetLabel: "В пределах бюджетных мест",
+  paidLabel: "Рекомендован к зачислению на платной основе",
+};
+const budgetLabelOptions = [
+  "В пределах бюджетных мест",
+  "Рекомендован к зачислению на бюджетной основе",
+  "Зачислен на бюджетной основе",
+];
+const paidLabelOptions = [
+  "Рекомендован к зачислению на платной основе",
+  "Зачислен на платной основе",
+];
 function formatSNILS(value: string) {
   const d = value.replace(/\D/g, "").slice(0, 11);
   return (
@@ -79,7 +92,8 @@ export function AdminWorkspace() {
     [items, setItems] = useState<DraftApplication[]>([]),
     [message, setMessage] = useState(""),
     [reportLoading, setReportLoading] = useState(false),
-    [publicationUpdating, setPublicationUpdating] = useState(false);
+    [publicationUpdating, setPublicationUpdating] = useState(false),
+    [labelsSaving, setLabelsSaving] = useState(false);
   const savedWorkspace = loadWorkspace();
   const [login, setLogin] = useState(""),
     [password, setPassword] = useState(""),
@@ -100,6 +114,7 @@ export function AdminWorkspace() {
     savedWorkspace.editingScore ||
       (savedWorkspace.editing ? Number(savedWorkspace.editing.averageScore).toFixed(3).replace(".", ",") : ""),
   );
+  const [publicationLabels, setPublicationLabels] = useState<PublicationLabels>(defaultPublicationLabels);
   useEffect(() => {
     fetch("/api/admin/session")
       .then((r) => r.json())
@@ -133,6 +148,7 @@ export function AdminWorkspace() {
   useEffect(() => {
     if (authenticated) {
       adminApi.programs().then(setPrograms);
+      adminApi.settings().then(setPublicationLabels);
       refreshItems();
     }
   }, [authenticated]);
@@ -211,6 +227,13 @@ export function AdminWorkspace() {
       setMessage(value ? "Публично отображаются только заявления с оригиналами." : "Публично снова отображаются все заявления.");
     } else setMessage("Не удалось изменить режим публикации.");
     setPublicationUpdating(false);
+  }
+  async function savePublicationLabels() {
+    setLabelsSaving(true);
+    const response = await adminApi.updateSettings(publicationLabels);
+    if (response.ok) setMessage("Подписи для публичных списков сохранены.");
+    else setMessage("Не удалось сохранить подписи.");
+    setLabelsSaving(false);
   }
   async function save(item: DraftApplication) {
     if (!validName(item.fullName) || !validScore(editingScore)) {
@@ -294,6 +317,22 @@ export function AdminWorkspace() {
         />
         Показывать публично только заявления с оригиналами
       </label>
+      <section className="publication-labels">
+        <h2>Подписи в публичных списках</h2>
+        <label>
+          Для бюджетных мест
+          <select value={publicationLabels.budgetLabel} onChange={(e) => setPublicationLabels((current) => ({ ...current, budgetLabel: e.target.value }))}>
+            {budgetLabelOptions.map((label) => <option key={label} value={label}>{label}</option>)}
+          </select>
+        </label>
+        <label>
+          Для платной основы
+          <select value={publicationLabels.paidLabel} onChange={(e) => setPublicationLabels((current) => ({ ...current, paidLabel: e.target.value }))}>
+            {paidLabelOptions.map((label) => <option key={label} value={label}>{label}</option>)}
+          </select>
+        </label>
+        <button type="button" onClick={savePublicationLabels} disabled={labelsSaving}>{labelsSaving ? "Сохраняем…" : "Сохранить подписи"}</button>
+      </section>
       <label className="admin-search">
         Поиск по ФИО
         <input

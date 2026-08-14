@@ -5,8 +5,10 @@ import './status.css'
 
 type Program = { code: string; name: string; budgetSeats: number; paidSeats: number; publicOriginalOnly: boolean }
 type Row = { name: string; averageScore: number; originalGiven: boolean; benefit: boolean; overallRank: number; originalRank?: number; budgetOverall: boolean; budgetOriginal: boolean; paidOverall: boolean; matched: boolean }
-type ListResponse = { program: Program; applications: Row[] }
+type PublicationLabels = { budgetLabel: string; paidLabel: string }
+type ListResponse = { program: Program; labels: PublicationLabels; applications: Row[] }
 const publicStateKey = 'utec-public-list-state'
+const defaultLabels: PublicationLabels = { budgetLabel: 'В пределах бюджетных мест', paidLabel: 'Рекомендован к зачислению на платной основе' }
 
 function loadPublicState() {
   try { return JSON.parse(localStorage.getItem(publicStateKey) || '{}') } catch { return {} }
@@ -23,6 +25,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const matchedRowRef = useRef<HTMLTableRowElement | null>(null)
   const publicOriginalOnly = programs.find(p => p.code === programCode)?.publicOriginalOnly || data?.program.publicOriginalOnly || false
+  const labels = data?.labels || defaultLabels
 
   useEffect(() => { fetch('/api/public/programs').then(r => r.json()).then(setPrograms) }, [])
   useEffect(() => {
@@ -52,9 +55,9 @@ export default function App() {
         {publicOriginalOnly ? <p className="published-original-notice">Опубликован список абитуриентов, предоставивших оригиналы документов.</p> : <label className="toggle"><input type="checkbox" checked={onlyOriginal} onChange={e => setOnlyOriginal(e.target.checked)} /><span>Только с оригиналом</span></label>}
       </div>
       {data && <><div className="summary"><div><b>{data.program.budgetSeats}</b><span>бюджетных мест</span></div><div><b>{data.program.paidSeats}</b><span>коммерческих мест</span></div><p>Рейтинг обновляется после публикации приёмной комиссией.</p></div>
-      <div className="legend"><span className="legend-item"><span className="dot green" /><span className="legend-full">В пределах бюджетных мест</span><span className="legend-short">Бюджет</span></span><span className="legend-item"><span className="dot purple" /><span className="legend-full">Рекомендованы к зачислению на платной основе</span><span className="legend-short">Платная основа</span></span><span className="legend-item"><span className="dot blue" /><span className="legend-full">Оригинал документа</span><span className="legend-short">Оригинал</span></span><span className="legend-item"><span className="dot amber" />Льгота</span></div>
+      <div className="legend"><span className="legend-item"><span className="dot green" /><span className="legend-full">{labels.budgetLabel}</span><span className="legend-short">Бюджет</span></span><span className="legend-item"><span className="dot purple" /><span className="legend-full">{labels.paidLabel}</span><span className="legend-short">Платная основа</span></span><span className="legend-item"><span className="dot blue" /><span className="legend-full">Оригинал документа</span><span className="legend-short">Оригинал</span></span><span className="legend-item"><span className="dot amber" />Льгота</span></div>
       <p className="table-scroll-hint" aria-hidden="true">← Листайте таблицу влево и вправо →</p>
-      <div className="table-wrap"><table><thead><tr><th>ФИО</th><th>Средний балл</th><th>Оригинал</th><th>Льгота</th><th>Общий рейтинг</th><th>Рейтинг с оригиналом</th></tr></thead><tbody>{data.applications.length === 0 ? <tr><td colSpan={6}>Заявлений пока нет.</td></tr> : data.applications.map(row => <tr ref={row.matched ? matchedRowRef : undefined} key={`${row.name}-${row.overallRank}`} className={`${row.budgetOverall ? 'budget' : ''} ${row.paidOverall ? 'paid' : ''} ${row.matched ? 'matched' : ''}`}><td><div>{row.name}</div>{row.budgetOverall && <span className="admission-status budget-status">В пределах бюджетных мест</span>}{row.paidOverall && <span className="admission-status paid-status">Рекомендован к зачислению на платной основе</span>}</td><td className="score">{row.averageScore.toFixed(3).replace('.', ',')}</td><td><span className={row.originalGiven ? 'check' : 'empty'}>{row.originalGiven ? '✓ Есть' : '—'}</span></td><td><span className={row.benefit ? 'benefit' : 'empty'}>{row.benefit ? '✓ Есть' : '—'}</span></td><td>{row.overallRank}</td><td>{row.originalRank ?? '—'}</td></tr>)}</tbody></table></div>{loading && <p className="updating">Обновляем результат поиска…</p>}</>}
+      <div className="table-wrap"><table><thead><tr><th>ФИО</th><th>Средний балл</th><th>Оригинал</th><th>Льгота</th><th>Общий рейтинг</th><th>Рейтинг с оригиналом</th></tr></thead><tbody>{data.applications.length === 0 ? <tr><td colSpan={6}>Заявлений пока нет.</td></tr> : data.applications.map(row => <tr ref={row.matched ? matchedRowRef : undefined} key={`${row.name}-${row.overallRank}`} className={`${row.budgetOverall ? 'budget' : ''} ${row.paidOverall ? 'paid' : ''} ${row.matched ? 'matched' : ''}`}><td><div>{row.name}</div>{row.budgetOverall && <span className="admission-status budget-status">{labels.budgetLabel}</span>}{row.paidOverall && <span className="admission-status paid-status">{labels.paidLabel}</span>}</td><td className="score">{row.averageScore.toFixed(3).replace('.', ',')}</td><td><span className={row.originalGiven ? 'check' : 'empty'}>{row.originalGiven ? '✓ Есть' : '—'}</span></td><td><span className={row.benefit ? 'benefit' : 'empty'}>{row.benefit ? '✓ Есть' : '—'}</span></td><td>{row.overallRank}</td><td>{row.originalRank ?? '—'}</td></tr>)}</tbody></table></div>{loading && <p className="updating">Обновляем результат поиска…</p>}</>}
     </section>
     <footer>© Уфимский торгово-экономический колледж · Приёмная комиссия</footer>
   </main>

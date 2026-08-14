@@ -52,6 +52,24 @@ type applicationRow struct {
 	PaidOverall    bool    `json:"paidOverall"`
 	Matched        bool    `json:"matched"`
 }
+type publicationLabels struct {
+	BudgetLabel string `json:"budgetLabel"`
+	PaidLabel   string `json:"paidLabel"`
+}
+
+const defaultBudgetLabel = "В пределах бюджетных мест"
+const defaultPaidLabel = "Рекомендован к зачислению на платной основе"
+
+var allowedBudgetLabels = map[string]bool{
+	"В пределах бюджетных мест":                     true,
+	"Рекомендован к зачислению на бюджетной основе": true,
+	"Зачислен на бюджетной основе":                  true,
+}
+var allowedPaidLabels = map[string]bool{
+	"Рекомендован к зачислению на платной основе": true,
+	"Зачислен на платной основе":                  true,
+}
+
 type createApplicationRequest struct {
 	SNILS         string  `json:"snils"`
 	FullName      string  `json:"fullName"`
@@ -110,6 +128,8 @@ func main() {
 	mux.HandleFunc("GET /api/admin/session", s.session)
 	mux.HandleFunc("GET /api/admin/programs", s.adminPrograms)
 	mux.HandleFunc("PUT /api/admin/programs/{code}/publication", s.updateProgramPublication)
+	mux.HandleFunc("GET /api/admin/settings", s.adminSettings)
+	mux.HandleFunc("PUT /api/admin/settings", s.updateAdminSettings)
 	mux.HandleFunc("GET /api/admin/applications", s.adminApplications)
 	mux.HandleFunc("POST /api/admin/applications", s.createApplication)
 	mux.HandleFunc("DELETE /api/admin/applications", s.deleteProgramApplications)
@@ -242,6 +262,11 @@ func (s *server) publicApplications(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	labels, err := s.getPublicationLabels(r.Context())
+	if err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
 	rows, err := s.db.Query(r.Context(), `SELECT a.full_name,x.average_score::float8,x.original_given,x.benefit FROM applications x JOIN applicants a ON a.id=x.applicant_id JOIN programs p ON p.id=x.program_id WHERE p.code=$1 AND ($2=false OR x.original_given=true) ORDER BY x.benefit DESC,x.average_score DESC,a.full_name ASC`, code, originalOnly)
 	if err != nil {
 		respond(w, 500, map[string]string{"error": "database error"})
@@ -271,13 +296,19 @@ func (s *server) publicApplications(w http.ResponseWriter, r *http.Request) {
 		}
 		result = append(result, item)
 	}
-	payload := map[string]any{"program": selected, "applications": result}
+	payload := map[string]any{"program": selected, "labels": labels, "applications": result}
 	if search == "" {
 		if raw, err := json.Marshal(payload); err == nil {
 			_ = s.redis.Set(r.Context(), cacheKey, raw, time.Minute).Err()
 		}
 	}
 	respond(w, 200, payload)
+}
+
+func (s *server) getPublicationLabels(ctx context.Context) (publicationLabels, error) {
+	labels := publicationLabels{}
+	err := s.db.QueryRow(ctx, `SELECT budget_label,paid_label FROM publication_settings WHERE id=1`).Scan(&labels.BudgetLabel, &labels.PaidLabel)
+	return labels, err
 }
 
 func (s *server) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
@@ -335,6 +366,38 @@ func (s *server) adminPrograms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.publicPrograms(w, r)
+}
+
+func (s *server) adminSettings(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		respond(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	labels, err := s.getPublicationLabels(r.Context())
+	if err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
+	respond(w, 200, labels)
+}
+
+func (s *server) updateAdminSettings(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAdmin(w, r) {
+		respond(w, 401, map[string]string{"error": "unauthorized"})
+		return
+	}
+	var labels publicationLabels
+	if json.NewDecoder(r.Body).Decode(&labels) != nil || !allowedBudgetLabels[labels.BudgetLabel] || !allowedPaidLabels[labels.PaidLabel] {
+		respond(w, 400, map[string]string{"error": "invalid labels"})
+		return
+	}
+	_, err := s.db.Exec(r.Context(), `UPDATE publication_settings SET budget_label=$1,paid_label=$2,updated_at=now() WHERE id=1`, labels.BudgetLabel, labels.PaidLabel)
+	if err != nil {
+		respond(w, 500, map[string]string{"error": "database error"})
+		return
+	}
+	s.invalidatePublicLists(r.Context())
+	respond(w, 200, labels)
 }
 
 func (s *server) updateProgramPublication(w http.ResponseWriter, r *http.Request) {
